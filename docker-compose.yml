@@ -1,0 +1,63 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-votacao
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: votacao
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d votacao"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - votacao-net
+
+  backend:
+    build:
+      context: ./backend
+    container_name: backend-votacao
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/votacao
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      CPF_VALIDATOR_URL: http://backend:8080/api/v1/fake
+      SPRING_PROFILES_ACTIVE: default
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - votacao-net
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api/v1
+    container_name: frontend-votacao
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - votacao-net
+
+volumes:
+  postgres_data:
+    name: postgres_votacao_data
+
+networks:
+  votacao-net:
+    name: votacao-net
+    driver: bridge
